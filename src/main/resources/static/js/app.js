@@ -1,0 +1,360 @@
+// 字幕查找工具 - JavaScript 交互功能
+
+class SubtitleFinderApp {
+    constructor() {
+        this.stompClient = null;
+        this.currentTaskId = null;
+        this.isConnected = false;
+        this.init();
+    }
+
+    // 初始化应用
+    init() {
+        this.setupEventListeners();
+        this.connectWebSocket();
+        this.showWelcomeMessage();
+    }
+
+    // 设置事件监听器
+    setupEventListeners() {
+        // 表单提交
+        document.getElementById('searchForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.startSubtitleSearch();
+        });
+
+        // 清空日志按钮
+        document.getElementById('clearLogBtn').addEventListener('click', () => {
+            this.clearLogs();
+        });
+
+        // 滚动到底部按钮
+        document.getElementById('scrollToBottomBtn').addEventListener('click', () => {
+            this.scrollToBottom();
+        });
+
+        // 自动滚动到新日志
+        this.setupAutoScroll();
+    }
+
+    // 连接 WebSocket
+    connectWebSocket() {
+        const socket = new SockJS('/ws');
+        this.stompClient = new StompJs.Client({
+            webSocketFactory: () => socket,
+            debug: (str) => {
+                console.log('STOMP Debug:', str);
+            },
+            reconnectDelay: 5000,
+            heartbeatIncoming: 4000,
+            heartbeatOutgoing: 4000,
+        });
+
+        this.stompClient.onConnect = () => {
+            console.log('WebSocket 连接成功');
+            this.isConnected = true;
+            this.updateConnectionStatus(true);
+        };
+
+        this.stompClient.onDisconnect = () => {
+            console.log('WebSocket 连接断开');
+            this.isConnected = false;
+            this.updateConnectionStatus(false);
+        };
+
+        this.stompClient.onStompError = (frame) => {
+            console.error('STOMP 错误:', frame.headers['message']);
+            this.showNotification('连接错误', 'WebSocket 连接发生错误', 'danger');
+        };
+
+        this.stompClient.activate();
+    }
+
+    // 更新连接状态
+    updateConnectionStatus(connected) {
+        const statusAlert = document.getElementById('statusAlert');
+        const statusText = document.getElementById('statusText');
+
+        if (connected) {
+            statusAlert.className = 'alert alert-success';
+            statusText.textContent = 'WebSocket 已连接';
+        } else {
+            statusAlert.className = 'alert alert-warning';
+            statusText.textContent = 'WebSocket 连接断开';
+        }
+
+        statusAlert.style.display = 'block';
+    }
+
+    // 开始字幕搜索
+    async startSubtitleSearch() {
+        const form = document.getElementById('searchForm');
+        const formData = new FormData(form);
+        const startBtn = document.getElementById('startBtn');
+
+        // 验证输入
+        const directoryPath = formData.get('directoryPath');
+        if (!directoryPath || directoryPath.trim() === '') {
+            this.showNotification('输入错误', '请输入视频目录路径', 'warning');
+            return;
+        }
+
+        // 禁用表单
+        this.setFormEnabled(false);
+        startBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>正在启动...';
+
+        try {
+            const response = await fetch('/api/search-subtitles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    directoryPath: directoryPath.trim(),
+                    recursive: formData.get('recursive') === 'on'
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.currentTaskId = result.data;
+                this.subscribeToTaskLogs(this.currentTaskId);
+                this.updateStatus('running', '任务执行中...');
+                this.showProgress(0, 100, '任务已启动');
+                this.showNotification('任务启动', '字幕搜索任务已开始执行', 'success');
+            } else {
+                throw new Error(result.message || '启动任务失败');
+            }
+
+        } catch (error) {
+            console.error('启动任务失败:', error);
+            this.addLogEntry('ERROR', '启动任务失败: ' + error.message);
+            this.showNotification('错误', '启动任务失败: ' + error.message, 'danger');
+            this.setFormEnabled(true);
+            startBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>开始查找字幕';
+        }
+    }
+
+    // 订阅任务日志
+    subscribeToTaskLogs(taskId) {
+        if (!this.isConnected || !this.stompClient) {
+            console.error('WebSocket 未连接，无法订阅日志');
+            return;
+        }
+
+        this.stompClient.subscribe(`/topic/logs/${taskId}`, (message) => {
+            const data = JSON.parse(message.body);
+            this.handleLogMessage(data);
+        });
+    }
+
+    // 处理日志消息
+    handleLogMessage(data) {
+        switch (data.type) {
+            case 'log':
+                this.addLogEntry(data.level, data.message, data.timestamp);
+                break;
+            case 'progress':
+                this.showProgress(data.current, data.total, data.message);
+                break;
+            case 'complete':
+                this.handleTaskComplete();
+                break;
+            case 'error':
+                this.handleTaskError(data.message);
+                break;
+        }
+    }
+
+    // 添加日志条目
+    addLogEntry(level, message, timestamp = null) {
+        const logContainer = document.getElementById('logContainer');
+        const logEntry = document.createElement('div');
+
+        const now = timestamp || new Date().toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+
+        logEntry.className = `log-entry log-${level.toLowerCase()} fade-in-up`;
+        logEntry.innerHTML = `
+            <span class="log-timestamp">[${now}]</span>
+            <span class="log-level log-level-${level.toLowerCase()}">[${level}]</span>
+            <span class="log-message">${this.escapeHtml(message)}</span>
+        `;
+
+        logContainer.appendChild(logEntry);
+
+        // 自动滚动到底部
+        setTimeout(() => this.scrollToBottom(), 100);
+
+        // 限制日志条目数量
+        this.limitLogEntries();
+    }
+
+    // 显示进度
+    showProgress(current, total, message) {
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+
+        const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+
+        progressContainer.style.display = 'block';
+        progressBar.style.width = `${percentage}%`;
+        progressBar.setAttribute('aria-valuenow', percentage);
+        progressBar.textContent = `${percentage}%`;
+        progressText.textContent = message || `${current} / ${total}`;
+    }
+
+    // 处理任务完成
+    handleTaskComplete() {
+        this.updateStatus('success', '任务执行完成');
+        this.setFormEnabled(true);
+        this.showNotification('任务完成', '字幕搜索任务已完成', 'success');
+
+        const startBtn = document.getElementById('startBtn');
+        startBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>开始查找字幕';
+
+        // 隐藏进度条
+        setTimeout(() => {
+            document.getElementById('progressContainer').style.display = 'none';
+        }, 3000);
+    }
+
+    // 处理任务错误
+    handleTaskError(message) {
+        this.updateStatus('error', '任务执行失败');
+        this.setFormEnabled(true);
+        this.addLogEntry('ERROR', message);
+        this.showNotification('任务失败', message, 'danger');
+
+        const startBtn = document.getElementById('startBtn');
+        startBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>开始查找字幕';
+    }
+
+    // 更新状态
+    updateStatus(status, message) {
+        const statusAlert = document.getElementById('statusAlert');
+        const statusText = document.getElementById('statusText');
+        const statusSpinner = document.getElementById('statusSpinner');
+
+        statusAlert.style.display = 'block';
+
+        switch (status) {
+            case 'running':
+                statusAlert.className = 'alert alert-info';
+                statusSpinner.style.display = 'inline-block';
+                break;
+            case 'success':
+                statusAlert.className = 'alert alert-success';
+                statusSpinner.style.display = 'none';
+                break;
+            case 'error':
+                statusAlert.className = 'alert alert-danger';
+                statusSpinner.style.display = 'none';
+                break;
+        }
+
+        statusText.textContent = message;
+    }
+
+    // 设置表单启用状态
+    setFormEnabled(enabled) {
+        const form = document.getElementById('searchForm');
+        const inputs = form.querySelectorAll('input, button');
+
+        inputs.forEach(input => {
+            input.disabled = !enabled;
+        });
+    }
+
+    // 清空日志
+    clearLogs() {
+        const logContainer = document.getElementById('logContainer');
+        logContainer.innerHTML = '';
+        this.showWelcomeMessage();
+    }
+
+    // 滚动到底部
+    scrollToBottom() {
+        const logContainer = document.getElementById('logContainer');
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // 设置自动滚动
+    setupAutoScroll() {
+        const logContainer = document.getElementById('logContainer');
+        let isUserScrolling = false;
+
+        logContainer.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = logContainer;
+            isUserScrolling = scrollTop < scrollHeight - clientHeight - 50;
+        });
+
+        // 监听新日志条目
+        const observer = new MutationObserver(() => {
+            if (!isUserScrolling) {
+                this.scrollToBottom();
+            }
+        });
+
+        observer.observe(logContainer, { childList: true });
+    }
+
+    // 限制日志条目数量
+    limitLogEntries(maxEntries = 1000) {
+        const logContainer = document.getElementById('logContainer');
+        const entries = logContainer.querySelectorAll('.log-entry');
+
+        if (entries.length > maxEntries) {
+            const entriesToRemove = entries.length - maxEntries;
+            for (let i = 0; i < entriesToRemove; i++) {
+                entries[i].remove();
+            }
+        }
+    }
+
+    // 显示通知
+    showNotification(title, message, type = 'info') {
+        const toastElement = document.getElementById('notificationToast');
+        const toastTitle = document.getElementById('toastTitle');
+        const toastBody = document.getElementById('toastBody');
+
+        toastTitle.textContent = title;
+        toastBody.textContent = message;
+
+        // 设置Toast样式
+        toastElement.className = `toast show bg-${type}`;
+        if (type === 'danger' || type === 'dark') {
+            toastElement.classList.add('text-white');
+        }
+
+        const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
+        toast.show();
+    }
+
+    // 显示欢迎消息
+    showWelcomeMessage() {
+        const now = new Date().toLocaleString('zh-CN');
+        this.addLogEntry('INFO', '欢迎使用字幕查找工具 Web 版！', now);
+        this.addLogEntry('INFO', '请在左侧输入视频目录路径，然后点击"开始查找字幕"按钮。', now);
+    }
+
+    // HTML转义
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
+// 当页面加载完成后初始化应用
+document.addEventListener('DOMContentLoaded', () => {
+    window.subtitleApp = new SubtitleFinderApp();
+});
