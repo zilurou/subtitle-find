@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  subtitle-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: subtitle-scraper
+    ports:
+      - "19251:19251"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - TZ=Asia/Shanghai
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    volumes:
+      # 挂载视频目录（用户可根据需要修改）
+      - /path/to/your/videos:/app/videos:ro
+      # 挂载日志目录
+      - ./logs:/app/logs
+      # 挂载下载的字幕输出目录（可选）
+      - ./subtitles:/app/subtitles
+    restart: unless-stopped
+    networks:
+      - subtitle-network
+
+networks:
+  subtitle-network:
+    driver: bridge
+
+# 如果需要持久化数据，可以添加 volumes 配置
+volumes:
+  subtitle_logs:
+    driver: local

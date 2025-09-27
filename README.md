@@ -58,7 +58,7 @@ mvn exec:java -Dexec.mainClass="com.subtitlefind.SubtitleFinderApplication"
 ## 访问地址
 启动成功后，在浏览器中访问：
 ```
-http://localhost:8080
+http://localhost:19251
 ```
 
 ## 技术架构

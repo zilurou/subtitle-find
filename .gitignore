@@ -36,5 +36,6 @@ build/
 #############
 .codex/
 subtitle-find.iml
+rebel.xml
 ### Mac OS ###
 .DS_Store

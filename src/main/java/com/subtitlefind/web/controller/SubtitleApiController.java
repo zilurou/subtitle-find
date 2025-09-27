@@ -2,13 +2,16 @@ package com.subtitlefind.web.controller;
 
 import com.subtitlefind.service.SubtitleFinderService;
 import com.subtitlefind.web.dto.ApiResponse;
+import com.subtitlefind.web.dto.DirectoryInfo;
 import com.subtitlefind.web.dto.SubtitleSearchRequest;
+import com.subtitlefind.web.service.FileSystemService;
 import com.subtitlefind.web.service.LogWebSocketService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -23,6 +26,9 @@ public class SubtitleApiController {
 
     @Autowired
     private LogWebSocketService logWebSocketService;
+
+    @Autowired
+    private FileSystemService fileSystemService;
 
     @PostMapping("/search-subtitles")
     public ApiResponse<String> searchSubtitles(@RequestBody SubtitleSearchRequest request) {
@@ -42,6 +48,54 @@ public class SubtitleApiController {
         } catch (Exception e) {
             logger.error("启动字幕搜索任务失败", e);
             return ApiResponse.error("启动任务失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/file-system/roots")
+    public ApiResponse<List<DirectoryInfo>> getRootDirectories() {
+        try {
+            List<DirectoryInfo> roots = fileSystemService.getRootDirectories();
+            return ApiResponse.success("获取根目录成功", roots);
+        } catch (Exception e) {
+            logger.error("获取根目录失败", e);
+            return ApiResponse.error("获取根目录失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/file-system/directory")
+    public ApiResponse<DirectoryInfo> getDirectoryContents(@RequestParam("path") String path) {
+        try {
+            if (path == null || path.trim().isEmpty()) {
+                return ApiResponse.error("目录路径不能为空");
+            }
+
+            DirectoryInfo directoryInfo = fileSystemService.getDirectoryContents(path.trim());
+            return ApiResponse.success("获取目录内容成功", directoryInfo);
+        } catch (Exception e) {
+            logger.error("获取目录内容失败: " + path, e);
+            return ApiResponse.error("获取目录内容失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/file-system/validate")
+    public ApiResponse<Boolean> validateDirectory(@RequestParam("path") String path) {
+        try {
+            boolean isValid = fileSystemService.isValidDirectory(path);
+            return ApiResponse.success("目录验证完成", isValid);
+        } catch (Exception e) {
+            logger.error("验证目录失败: " + path, e);
+            return ApiResponse.error("验证目录失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/file-system/home")
+    public ApiResponse<String> getUserHomeDirectory() {
+        try {
+            String homeDir = fileSystemService.getUserHomeDirectory();
+            return ApiResponse.success("获取用户主目录成功", homeDir);
+        } catch (Exception e) {
+            logger.error("获取用户主目录失败", e);
+            return ApiResponse.error("获取用户主目录失败: " + e.getMessage());
         }
     }
 
