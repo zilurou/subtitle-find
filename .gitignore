@@ -33,6 +33,8 @@ build/
 
 ### VS Code ###
 .vscode/
-
+#############
+.codex/
+subtitle-find.iml
 ### Mac OS ###
 .DS_Store

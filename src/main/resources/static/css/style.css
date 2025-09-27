@@ -8,6 +8,7 @@
     --info-color: #0dcaf0;
     --dark-color: #212529;
     --light-color: #f8f9fa;
+    --custom-header-color: #2c5f7c;
 }
 
 body {
@@ -17,6 +18,12 @@ body {
 
 .container-fluid {
     max-width: 1400px;
+}
+
+/* 自定义首栏样式 */
+.bg-custom-header {
+    background: linear-gradient(135deg, var(--custom-header-color) 0%, #3a7b9c 100%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* 日志容器样式 */

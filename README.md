@@ -64,7 +64,8 @@ http://localhost:8080
 ## 技术架构
 
 ### 后端技术
-- **Spring Boot** - Web 框架
+- **Spring Boot3** - Web 框架
+- **JDK17**
 - **WebSocket** - 实时通信
 - **REST API** - 接口服务
 
