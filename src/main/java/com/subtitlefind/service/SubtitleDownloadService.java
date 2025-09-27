@@ -26,28 +26,28 @@ public class SubtitleDownloadService {
 
     public SubtitleDownloadService() {
         this.httpClient = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .addInterceptor(chain -> {
-                Request originalRequest = chain.request();
-                Request requestWithUserAgent = originalRequest.newBuilder()
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-                    .header("Accept", "*/*")
-                    .header("Accept-Language", "zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3")
-                    .header("Accept-Encoding", "gzip, deflate")
-                    .header("Connection", "keep-alive")
-                    .build();
-                return chain.proceed(requestWithUserAgent);
-            })
-            .build();
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .addInterceptor(chain -> {
+                    Request originalRequest = chain.request();
+                    Request requestWithUserAgent = originalRequest.newBuilder()
+                            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                            .header("Accept", "*/*")
+                            .header("Accept-Language", "zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3")
+                            .header("Accept-Encoding", "gzip, deflate")
+                            .header("Connection", "keep-alive")
+                            .build();
+                    return chain.proceed(requestWithUserAgent);
+                })
+                .build();
     }
 
     /**
      * 下载字幕文件并保存到指定目录
      *
-     * @param subtitleInfo 字幕信息
-     * @param videoFileName 视频文件名（不含扩展名）
+     * @param subtitleInfo    字幕信息
+     * @param videoFileName   视频文件名（不含扩展名）
      * @param targetDirectory 目标目录
      * @return 是否下载成功
      */
@@ -70,6 +70,12 @@ public class SubtitleDownloadService {
             byte[] subtitleContent = downloadSubtitleContent(subtitleInfo.getDownloadUrl());
             if (subtitleContent == null || subtitleContent.length == 0) {
                 logger.error("下载的字幕内容为空");
+                return false;
+            }
+
+            // 验证字幕文件内容
+            if (!isValidSubtitleContent(subtitleContent)) {
+                logger.error("下载的内容不是有效的字幕文件，可能是404页面或其他错误内容");
                 return false;
             }
 
@@ -112,9 +118,9 @@ public class SubtitleDownloadService {
             logger.debug("发起下载请求: {}", downloadUrl);
 
             Request request = new Request.Builder()
-                .url(downloadUrl)
-                .get()
-                .build();
+                    .url(downloadUrl)
+                    .get()
+                    .build();
 
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
@@ -137,7 +143,7 @@ public class SubtitleDownloadService {
      * 根据下载链接和文件内容确定字幕文件扩展名
      *
      * @param downloadUrl 下载链接
-     * @param content 文件内容
+     * @param content     文件内容
      * @return 文件扩展名
      */
     private String getSubtitleExtension(String downloadUrl, byte[] content) {
@@ -183,9 +189,9 @@ public class SubtitleDownloadService {
     /**
      * 批量下载字幕文件
      *
-     * @param videoFileName 视频文件名（不含扩展名）
+     * @param videoFileName   视频文件名（不含扩展名）
      * @param targetDirectory 目标目录
-     * @param subtitles 字幕信息列表
+     * @param subtitles       字幕信息列表
      * @return 成功下载的字幕数量
      */
     public int downloadSubtitles(String videoFileName, String targetDirectory, java.util.List<SubtitleInfo> subtitles) {
@@ -213,7 +219,7 @@ public class SubtitleDownloadService {
      * 检查字幕文件是否已存在
      *
      * @param videoFileName 视频文件名（不含扩展名）
-     * @param directory 目录路径
+     * @param directory     目录路径
      * @return 是否已存在字幕文件
      */
     public boolean subtitleExists(String videoFileName, String directory) {
@@ -227,12 +233,117 @@ public class SubtitleDownloadService {
         for (String ext : subtitleExtensions) {
             Path subtitlePath = dirPath.resolve(videoFileName + "." + ext);
             if (Files.exists(subtitlePath)) {
-                logger.debug("发现已存在的字幕文件: {}", subtitlePath);
-                return true;
+                // 检查现有字幕文件是否有效
+                if (isExistingSubtitleValid(subtitlePath)) {
+                    logger.debug("发现已存在的有效字幕文件: {}", subtitlePath);
+                    return true;
+                } else {
+                    // 删除无效的字幕文件
+                    logger.warn("发现无效字幕文件，将删除: {}", subtitlePath);
+                    try {
+                        Files.deleteIfExists(subtitlePath);
+                        logger.info("已删除无效字幕文件: {}", subtitlePath);
+                    } catch (Exception e) {
+                        logger.error("删除无效字幕文件失败: {}", e.getMessage(), e);
+                    }
+                }
             }
         }
 
         return false;
+    }
+
+    /**
+     * 检查现有字幕文件是否有效
+     *
+     * @param subtitlePath 字幕文件路径
+     * @return 是否有效
+     */
+    private boolean isExistingSubtitleValid(Path subtitlePath) {
+        try {
+            byte[] content = Files.readAllBytes(subtitlePath);
+            return isValidSubtitleContent(content);
+        } catch (Exception e) {
+            logger.debug("读取现有字幕文件失败: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 验证字幕文件内容是否有效
+     *
+     * @param content 文件内容
+     * @return 是否是有效的字幕文件
+     */
+    private boolean isValidSubtitleContent(byte[] content) {
+        if (content == null || content.length == 0) {
+            return false;
+        }
+
+        try {
+            String contentString = new String(content, "UTF-8").trim().toLowerCase();
+
+            // 检查文件大小，太小的文件可能不是有效字幕
+            if (content.length < 50) {
+                logger.debug("文件太小，可能不是有效字幕: {} 字节", content.length);
+                return false;
+            }
+
+            // 检查是否是HTML错误页面
+            if (contentString.contains("<html>") &&
+                    contentString.contains("<head>") &&
+                    contentString.contains("<body>")) {
+                logger.warn("检测到HTML错误页面内容，不是有效字幕文件");
+                return false;
+            }
+
+            // 检查是否包含常见的错误响应
+            if (contentString.contains("error") &&
+                    (contentString.contains("server") || contentString.contains("服务器"))) {
+                logger.warn("检测到错误响应内容");
+                return false;
+            }
+
+            // 检查是否包含字幕的典型特征
+            boolean hasTimeCode = contentString.contains("-->") ||
+                    contentString.matches(".*\\d{2}:\\d{2}:\\d{2}[,.]\\d{3}.*");
+
+            boolean hasSubtitleFormat = contentString.contains("[script info]") ||
+                    contentString.contains("[v4+ styles]") ||
+                    contentString.startsWith("webvtt") ||
+                    contentString.matches(".*\\d+\\s*\\n.*-->.*");
+
+            if (hasTimeCode || hasSubtitleFormat) {
+                logger.debug("检测到有效的字幕文件特征");
+                return true;
+            }
+
+            // 对于纯文本内容，检查是否包含合理的字幕行数
+            String[] lines = contentString.split("\n");
+            if (lines.length >= 3) {
+                // 简单检查：如果有多行内容且不是HTML，可能是字幕
+                boolean looksLikeSubtitle = false;
+                for (String line : lines) {
+                    if (line.trim().matches("\\d+") || // 序号行
+                            line.contains("-->") ||         // 时间行
+                            line.trim().length() > 5) {     // 内容行
+                        looksLikeSubtitle = true;
+                        break;
+                    }
+                }
+                if (looksLikeSubtitle) {
+                    logger.debug("内容看起来像字幕文件");
+                    return true;
+                }
+            }
+
+            logger.warn("文件内容不符合字幕格式特征");
+            return false;
+
+        } catch (Exception e) {
+            logger.error("验证字幕内容时发生错误: {}", e.getMessage(), e);
+            return false;
+        }
     }
 
     /**

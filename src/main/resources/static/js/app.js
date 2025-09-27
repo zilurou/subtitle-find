@@ -6,6 +6,7 @@ class SubtitleFinderApp {
         this.currentTaskId = null;
         this.isConnected = false;
         this.directoryBrowser = null;
+        this.currentSubscription = null;  // 跟踪当前订阅
         this.init();
     }
 
@@ -150,7 +151,16 @@ class SubtitleFinderApp {
             return;
         }
 
-        this.stompClient.subscribe(`/topic/logs/${taskId}`, (message) => {
+        // 取消之前的订阅
+        if (this.currentSubscription) {
+            console.log('取消之前的订阅');
+            this.currentSubscription.unsubscribe();
+            this.currentSubscription = null;
+        }
+
+        // 创建新订阅
+        console.log('订阅任务日志:', taskId);
+        this.currentSubscription = this.stompClient.subscribe(`/topic/logs/${taskId}`, (message) => {
             const data = JSON.parse(message.body);
             this.handleLogMessage(data);
         });
@@ -228,6 +238,13 @@ class SubtitleFinderApp {
         const startBtn = document.getElementById('startBtn');
         startBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>开始查找字幕';
 
+        // 清理订阅
+        if (this.currentSubscription) {
+            console.log('任务完成，取消订阅');
+            this.currentSubscription.unsubscribe();
+            this.currentSubscription = null;
+        }
+
         // 隐藏进度条
         setTimeout(() => {
             document.getElementById('progressContainer').style.display = 'none';
@@ -243,6 +260,13 @@ class SubtitleFinderApp {
 
         const startBtn = document.getElementById('startBtn');
         startBtn.innerHTML = '<i class="bi bi-play-circle me-2"></i>开始查找字幕';
+
+        // 清理订阅
+        if (this.currentSubscription) {
+            console.log('任务失败，取消订阅');
+            this.currentSubscription.unsubscribe();
+            this.currentSubscription = null;
+        }
     }
 
     // 更新状态

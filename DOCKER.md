@@ -32,7 +32,7 @@ docker build -t subtitle-scraper:latest .
 docker run -d \
   --name subtitle-scraper \
   -p 19251:19251 \
-  -v /path/to/your/videos:/app/videos:ro \
+  -v /path/to/your/videos:/app/videos \
   -v ./logs:/app/logs \
   subtitle-scraper:latest
 ```
@@ -44,9 +44,8 @@ docker run -d \
 - 可通过环境变量 `SERVER_PORT` 修改
 
 ### 卷挂载
-- `/app/videos`: 视频文件目录（只读）
+- `/app/videos`: 视频文件目录（读写权限，用于下载字幕文件）
 - `/app/logs`: 应用日志目录
-- `/app/subtitles`: 字幕输出目录
 
 ### 环境变量
 - `SPRING_PROFILES_ACTIVE`: Spring 配置文件（默认：prod）

@@ -13,12 +13,10 @@ services:
       - TZ=Asia/Shanghai
       - JAVA_OPTS=-Xmx512m -Xms256m
     volumes:
-      # 挂载视频目录（用户可根据需要修改）
-      - /path/to/your/videos:/app/videos:ro
+      # 挂载视频目录（读写权限，用于下载字幕文件）
+      - /path/to/your/videos:/app/videos
       # 挂载日志目录
       - ./logs:/app/logs
-      # 挂载下载的字幕输出目录（可选）
-      - ./subtitles:/app/subtitles
     restart: unless-stopped
     networks:
       - subtitle-network

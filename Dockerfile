@@ -1,5 +1,5 @@
 # 基于Java运行时镜像
-FROM openjdk:17-jre-slim
+FROM eclipse-temurin:17-jre
 
 # 设置工作目录
 WORKDIR /app
