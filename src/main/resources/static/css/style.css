@@ -451,3 +451,82 @@ body {
         --bi-loaded: true;
     }
 }
+
+/* ===== v2.0 新增样式 ===== */
+
+/* 字幕源多选框网格 */
+.subtitle-source-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.subtitle-source-grid .form-check-inline {
+    margin-right: 0;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.subtitle-source-grid .form-check-inline:hover {
+    background: #e7f3ff;
+    border-color: #0d6efd;
+}
+
+.subtitle-source-grid .form-check-inline:has(input:checked) {
+    background: #cfe2ff;
+    border-color: #0d6efd;
+}
+
+.subtitle-source-grid .form-check-input {
+    margin-right: 0.35rem;
+    cursor: pointer;
+}
+
+.subtitle-source-grid .form-check-label {
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* 滑块样式 */
+.form-range {
+    height: 1.5rem;
+}
+
+.form-range::-webkit-slider-thumb {
+    background: var(--primary-color);
+}
+
+.form-range::-webkit-slider-runnable-track {
+    background: #e9ecef;
+}
+
+/* 正则排除文本区 */
+#excludePatterns {
+    font-size: 0.8rem;
+    line-height: 1.4;
+    resize: vertical;
+    min-height: 50px;
+}
+
+/* 卡片中的表单文字更紧凑 */
+.card-body .form-label {
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.card-body .form-text {
+    font-size: 0.75rem;
+    margin-top: 0.15rem;
+}
+
+/* v2.0 header 增强 */
+.bg-custom-header {
+    border-radius: 0 0 12px 12px;
+}

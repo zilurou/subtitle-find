@@ -1,31 +1,32 @@
 version: '3.8'
 
 services:
-  subtitle-scraper:
+  subtitle-find:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: subtitle-scraper
+    container_name: subtitle-find
     ports:
       - "19251:19251"
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
       - TZ=Asia/Shanghai
       - JAVA_OPTS=-Xmx512m -Xms256m
     volumes:
-      # 挂载视频目录（读写权限，用于下载字幕文件）
-      - /path/to/your/videos:/app/videos
-      # 挂载日志目录
-      - ./logs:/app/logs
+      # 挂载视频目录（只读即可，字幕下载到同目录需要读写）
+      - /path/to/your/videos:/videos:rw
+      # 可选：挂载多个目录
+      # - /path/to/movies:/movies:rw
+      # - /path/to/tvshows:/tvshows:rw
     restart: unless-stopped
-    networks:
-      - subtitle-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:19251/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
-networks:
-  subtitle-network:
-    driver: bridge
-
-# 如果需要持久化数据，可以添加 volumes 配置
-volumes:
-  subtitle_logs:
-    driver: local
+# 使用说明:
+# 1. 修改 /path/to/your/videos 为你的视频实际路径
+# 2. docker-compose up -d
+# 3. 浏览器访问 http://localhost:19251
+# 4. 在界面中输入 /videos（容器内挂载路径）开始刮削

@@ -38,9 +38,9 @@ public class SubtitleApiController {
             }
 
             String taskId = UUID.randomUUID().toString();
-            logger.info("开始字幕搜索任务，任务ID: {}, 目录: {}", taskId, request.getDirectoryPath());
+            logger.info("开始字幕搜索任务，任务ID: {}, 目录: {}, 源: {}, 并发: {}",
+                taskId, request.getDirectoryPath(), request.getSubtitleSources(), request.getConcurrency());
 
-            // 异步执行字幕搜索任务
             CompletableFuture.runAsync(() -> executeSubtitleSearch(taskId, request));
 
             return ApiResponse.success("任务已开始执行", taskId);
@@ -68,7 +68,6 @@ public class SubtitleApiController {
             if (path == null || path.trim().isEmpty()) {
                 return ApiResponse.error("目录路径不能为空");
             }
-
             DirectoryInfo directoryInfo = fileSystemService.getDirectoryContents(path.trim());
             return ApiResponse.success("获取目录内容成功", directoryInfo);
         } catch (Exception e) {
@@ -109,27 +108,44 @@ public class SubtitleApiController {
      */
     private void executeSubtitleSearch(String taskId, SubtitleSearchRequest request) {
         try {
-            logWebSocketService.sendLog(taskId, "INFO", "开始扫描目录: " + request.getDirectoryPath());
+            logWebSocketService.sendLog(taskId, "INFO", "开始字幕刮削任务...");
+            logWebSocketService.sendLog(taskId, "INFO", "目录: " + request.getDirectoryPath());
+            logWebSocketService.sendLog(taskId, "INFO", "字幕源: " +
+                (request.getSubtitleSources() != null && !request.getSubtitleSources().isEmpty()
+                    ? String.join(", ", request.getSubtitleSources()) : "subtitlecat"));
 
-            // 创建字幕查找服务实例
-            SubtitleFinderService subtitleFinder = new SubtitleFinderService();
+            SubtitleFinderService finder = new SubtitleFinderService();
 
-            // 注入日志回调
-            subtitleFinder.setLogCallback((level, message) ->
+            // 设置配置
+            if (request.getSubtitleSources() != null && !request.getSubtitleSources().isEmpty()) {
+                finder.setSubtitleSources(request.getSubtitleSources());
+            }
+            if (request.getConcurrency() > 0) {
+                finder.setConcurrency(request.getConcurrency());
+            }
+            if (request.getRateLimitMs() >= 0) {
+                finder.setRateLimitMs(request.getRateLimitMs());
+            }
+            if (request.getMatchThreshold() > 0) {
+                finder.setMatchThreshold(request.getMatchThreshold());
+            }
+            if (request.getExcludePatterns() != null) {
+                finder.setExcludePatterns(request.getExcludePatterns());
+            }
+
+            finder.setLogCallback((level, message) ->
                 logWebSocketService.sendLog(taskId, level, message));
 
-            // 执行字幕查找
-            subtitleFinder.findSubtitlesForDirectory(request.getDirectoryPath());
+            finder.findSubtitlesForDirectory(request.getDirectoryPath());
 
             logWebSocketService.sendLog(taskId, "INFO", "任务执行完成！");
             logWebSocketService.sendTaskComplete(taskId);
 
-            // 关闭服务
-            subtitleFinder.shutdown();
+            finder.shutdown();
 
         } catch (Exception e) {
-            logger.error("执行字幕搜索任务失败，任务ID: " + taskId, e);
-            logWebSocketService.sendLog(taskId, "ERROR", "任务执行失败: " + e.getMessage());
+            logger.error("执行失败, taskId: " + taskId, e);
+            logWebSocketService.sendLog(taskId, "ERROR", "任务失败: " + e.getMessage());
             logWebSocketService.sendTaskComplete(taskId);
         }
     }
