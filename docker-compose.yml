@@ -1,10 +1,11 @@
-version: '3.8'
+version: "3.8"
 
 services:
   subtitle-find:
     build:
       context: .
       dockerfile: Dockerfile
+    image: subtitle-find:2.0
     container_name: subtitle-find
     ports:
       - "19251:19251"
@@ -12,21 +13,38 @@ services:
       - TZ=Asia/Shanghai
       - JAVA_OPTS=-Xmx512m -Xms256m
     volumes:
-      # 挂载视频目录（只读即可，字幕下载到同目录需要读写）
+      # ====== 必改：把左侧换成你宿主机的视频目录 ======
+      # Windows 示例: /d/Movies:/videos:rw
+      # Linux 示例:   /home/user/videos:/videos:rw
+      # NAS 示例:     /mnt/media/movies:/videos:rw
       - /path/to/your/videos:/videos:rw
-      # 可选：挂载多个目录
+
+      # 可选：挂载多个视频目录（在 WebUI 里分别选 /movies、/tvshows）
       # - /path/to/movies:/movies:rw
       # - /path/to/tvshows:/tvshows:rw
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:19251/api/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:19251/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 40s
+      start_period: 45s
 
-# 使用说明:
-# 1. 修改 /path/to/your/videos 为你的视频实际路径
-# 2. docker-compose up -d
-# 3. 浏览器访问 http://localhost:19251
-# 4. 在界面中输入 /videos（容器内挂载路径）开始刮削
+# ========================================================
+# 快速开始
+# ========================================================
+# 1. 修改上方 volumes 的视频目录路径
+# 2. docker-compose up -d          # 后台启动
+# 3. 浏览器打开 http://localhost:19251
+# 4. 在 WebUI 目录输入框输入 /videos 即可开始刮削
+#
+# 常用命令：
+#   docker-compose logs -f          # 查看实时日志
+#   docker-compose restart          # 重启
+#   docker-compose down             # 停止并删除容器
+#   docker-compose up -d --build    # 重新构建并启动
+#
+# 如果不想本地构建，也可以用预构建镜像（推到 Docker Hub 后）：
+#   image: yourname/subtitle-find:2.0
+#   然后删掉 build: 块
+# ========================================================
